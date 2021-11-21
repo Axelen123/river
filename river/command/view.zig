@@ -1,6 +1,6 @@
 // This file is part of river, a dynamic tiling wayland compositor.
 //
-// Copyright 2020 The River Developers
+// Copyright 2021 The River Developers
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -37,20 +37,43 @@ pub fn focusView(
     if (args.len < 2) return Error.NotEnoughArguments;
     if (args.len > 2) return Error.TooManyArguments;
 
-    if (try getView(seat, args[1])) |view| {
+    if (try getView(seat, args[1], false)) |view| {
         seat.focus(view);
         server.root.startTransaction();
     }
 }
 
-fn getView(seat: *Seat, str: []const u8) !?*View {
+/// Swap the currently focused view another in the visible stack, based either
+/// on logical or physical direction.
+pub fn swap(
+    allocator: *std.mem.Allocator,
+    seat: *Seat,
+    args: []const [:0]const u8,
+    out: *?[]const u8,
+) Error!void {
+    if (args.len < 2) return Error.NotEnoughArguments;
+    if (args.len > 2) return Error.TooManyArguments;
+
+    if (try getView(seat, args[1], true)) |view| {
+        const output = seat.focused_output;
+        const focused_node = @fieldParentPtr(ViewStack(View).Node, "view", seat.focused.view);
+        const swap_node = @fieldParentPtr(ViewStack(View).Node, "view", view);
+        output.views.swap(focused_node, swap_node);
+        output.arrangeViews();
+        server.root.startTransaction();
+    }
+}
+
+fn getView(seat: *Seat, str: []const u8, comptime only_layout: bool) !?*View {
     const output = seat.focused_output;
 
     // If No currently no view is focused , just focus the first in the stack.
     if (seat.focused != .view) {
-        var it = ViewStack(View).iter(output.views.first, .forward, output.pending.tags, filter);
+        var it = ViewStack(View).iter(output.views.first, .forward, output.pending.tags, Filter(only_layout).filter);
         return it.next();
     }
+
+    if (only_layout and seat.focused.view.pending.float) return null;
 
     // If the focused view is fullscreen, do nothing
     if (seat.focused.view.current.fullscreen) return null;
@@ -59,8 +82,8 @@ fn getView(seat: *Seat, str: []const u8) !?*View {
         // Focus the next visible view in the stack.
         const focused_node = @fieldParentPtr(ViewStack(View).Node, "view", seat.focused.view);
         var it = switch (direction) {
-            .next => ViewStack(View).iter(focused_node, .forward, output.pending.tags, filter),
-            .previous => ViewStack(View).iter(focused_node, .reverse, output.pending.tags, filter),
+            .next => ViewStack(View).iter(focused_node, .forward, output.pending.tags, Filter(only_layout).filter),
+            .previous => ViewStack(View).iter(focused_node, .reverse, output.pending.tags, Filter(only_layout).filter),
         };
 
         // Skip past the focused node
@@ -71,8 +94,8 @@ fn getView(seat: *Seat, str: []const u8) !?*View {
 
         // If there is no next visible node, we need to wrap.
         it = switch (direction) {
-            .next => ViewStack(View).iter(output.views.first, .forward, output.pending.tags, filter),
-            .previous => ViewStack(View).iter(output.views.last, .reverse, output.pending.tags, filter),
+            .next => ViewStack(View).iter(output.views.first, .forward, output.pending.tags, Filter(only_layout).filter),
+            .previous => ViewStack(View).iter(output.views.last, .reverse, output.pending.tags, Filter(only_layout).filter),
         };
         if (it.next()) |view| return view;
 
@@ -81,7 +104,7 @@ fn getView(seat: *Seat, str: []const u8) !?*View {
         var ret: ?*View = null;
         const focus_center = seat.focused.view.current.box.getCenter();
         var closeness: usize = std.math.maxInt(usize);
-        var it = ViewStack(View).iter(output.views.first, .forward, output.pending.tags, filter);
+        var it = ViewStack(View).iter(output.views.first, .forward, output.pending.tags, Filter(only_layout).filter);
         while (it.next()) |view| {
             if (view == seat.focused.view) continue;
             const diff_vector = focus_center.diff(view.current.box.getCenter());
@@ -97,6 +120,15 @@ fn getView(seat: *Seat, str: []const u8) !?*View {
     }
 }
 
-fn filter(view: *View, filter_tags: u32) bool {
-    return view.surface != null and view.pending.tags & filter_tags != 0;
+fn Filter(comptime only_layout: bool) type {
+    return struct {
+        fn filter(view: *View, filter_tags: u32) bool {
+            if (comptime only_layout) {
+                return view.surface != null and !view.pending.float and
+                    !view.pending.fullscreen and view.pending.tags & filter_tags != 0;
+            } else {
+                return view.surface != null and view.pending.tags & filter_tags != 0;
+            }
+        }
+    };
 }

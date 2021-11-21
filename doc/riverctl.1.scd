@@ -78,9 +78,9 @@ over the Wayland protocol.
 	*spawn* only takes a single argument. To spawn a command taking
 	multiple arguments, wrapping the command in quotes is recommended.
 
-*swap* *next*|*previous*
-	Swap the focused view with the next/previous visible non-floating
-	view. If the first/last view in the stack is focused, wrap.
+*swap* *next*|*previous*|*up*|*right*|*down*|*left*
+	Swap the focused view with the next or previous non-floating view in the
+	stack or the closest non-floating view in any direction.
 
 *toggle-float*
 	Toggle the floating state of the focused view.
