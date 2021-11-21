@@ -53,8 +53,9 @@ over the Wayland protocol.
 *focus-output* *next*|*previous*|*up*|*right*|*down*|*left*
 	Focus the next or previous output or the closest output in any direction.
 
-*focus-view* *next*|*previous*
-	Focus the next or previous view in the stack.
+*focus-view* *next*|*previous*|*up*|*right*|*down*|*left*
+	Focus the next or previous view in the stack or the closest view in
+	any direction.
 
 *move* *up*|*down*|*left*|*right* _delta_
 	Move the focused view in the specified direction by _delta_ logical

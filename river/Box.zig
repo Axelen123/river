@@ -19,6 +19,8 @@ const Self = @This();
 
 const wlr = @import("wlroots");
 
+const Vector = @import("Vector.zig");
+
 x: i32,
 y: i32,
 width: u32,
@@ -39,5 +41,12 @@ pub fn toWlrBox(self: Self) wlr.Box {
         .y = @intCast(c_int, self.y),
         .width = @intCast(c_int, self.width),
         .height = @intCast(c_int, self.height),
+    };
+}
+
+pub fn getCenter(self: Self) Vector {
+    return .{
+        .x = self.x + @divFloor(@truncate(u31, self.width), 2),
+        .y = self.y + @divFloor(@truncate(u31, self.height), 2),
     };
 }
